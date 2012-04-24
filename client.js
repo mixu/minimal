@@ -27,19 +27,27 @@ Client.prototype.data = function(data) {
 Client.prototype.end = function(callback) {
   var res_data = '';
 
-  this.opts.protocol.request(this.opts, function(response) {
-    response.on('data', function(chunk) { res_data += chunk; });
-    response.on('end', function() {
-      callback && callback(undefined, res_data);
-    });
+  var proxy = (this.opts.protocol == 'https:' ? https : http).request(this.opts, function(response) {
+    response.on('data', function(chunk) { res_data += chunk });
+    response.on('end', function() { callback && callback(undefined, res_data); });
   }).on('error', function(err) { callback && callback(err); });
+
+  if (this.opts.data && this.opts.method != 'GET') {
+    proxy.write(this.opts.data);
+  }
+  proxy.end();
 };
 
 Client.prototype.pipe = function(writeStream, callback) {
-  this.opts.protocol.request(this.opts, function(response) {
+  var proxy = (this.opts.protocol == 'https:' ? https : http).request(this.opts, function(response) {
     response.pipe(writeStream);
     callback && callback(undefined);
   }).on('error', function(err) { callback && callback(err); });
+
+  if (this.opts.data && this.opts.method != 'GET') {
+    proxy.write(this.opts.data);
+  }
+  proxy.end();
 };
 
 ['get', 'post', 'put', 'delete'].forEach(function(method) {
@@ -48,7 +56,7 @@ Client.prototype.pipe = function(writeStream, callback) {
     return new Client({
       method: method.toUpperCase(), path: u.path,
       port: u.port, hostname: u.hostname,
-      protocol: (u.protocol == 'https:' ? https : http)
+      protocol: u.protocol
     });
   };
 });
