@@ -14,6 +14,7 @@ Client.prototype.header = function(key, value) {
 };
 
 Client.prototype.data = function(data) {
+  if(!data || Object.keys(data).length == 0) return this;
   if(this.opts.method == 'GET') {
     this.opts.path += '?'+qs.stringify(data);
   } else {
@@ -25,11 +26,8 @@ Client.prototype.data = function(data) {
 };
 
 Client.prototype.end = function(callback) {
-  var res_data = '';
-
   var proxy = (this.opts.protocol == 'https:' ? https : http).request(this.opts, function(response) {
-    response.on('data', function(chunk) { res_data += chunk });
-    response.on('end', function() { callback && callback(undefined, res_data); });
+    callback && callback(undefined, response);
   }).on('error', function(err) { callback && callback(err); });
 
   if (this.opts.data && this.opts.method != 'GET') {
@@ -38,16 +36,23 @@ Client.prototype.end = function(callback) {
   proxy.end();
 };
 
-Client.prototype.pipe = function(writeStream, callback) {
-  var proxy = (this.opts.protocol == 'https:' ? https : http).request(this.opts, function(response) {
-    response.pipe(writeStream);
-    callback && callback(undefined);
-  }).on('error', function(err) { callback && callback(err); });
-
-  if (this.opts.data && this.opts.method != 'GET') {
-    proxy.write(this.opts.data);
-  }
-  proxy.end();
+// return a function that parses the data
+Client.parse = function(callback) {
+  var res_data = '';
+  return function(err, response) {
+    response.on('data', function(chunk) { res_data += chunk });
+    response.on('end', function() {
+      var type = response.headers['content-type'];
+      if(type && type.toLowerCase().indexOf('application/json') > -1) {
+        try {
+          res_data = JSON.parse(res_data);
+        } catch(err) {
+          return callback(err, res_data);
+        }
+      }
+      callback && callback(undefined, res_data);
+    });
+  };
 };
 
 ['get', 'post', 'put', 'delete'].forEach(function(method) {
