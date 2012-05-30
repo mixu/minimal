@@ -37,7 +37,7 @@ Client.prototype.end = function(callback) {
 };
 
 // return a function that parses the data
-Client.parse = function(callback) {
+exports.parse = Client.parse = function(callback) {
   var res_data = '';
   return function(err, response) {
     response.on('data', function(chunk) { res_data += chunk });
